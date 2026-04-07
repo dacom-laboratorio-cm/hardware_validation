@@ -1,68 +1,110 @@
-# 🚀 Workstation Hardware Validation & Burn-in Suite
+# Hardware Validation and Burn-in Suite
 
-Este repositório contém um script de automação em Bash desenvolvido para a homologação técnica de workstations de alta performance, especificamente configuradas com arquitetura **AMD Zen 4** e GPUs **NVIDIA RTX Pro 6000 (Blackwell)**.
+Script Bash para validacao de hardware de servidor/workstation com:
 
-O objetivo deste conjunto de testes é garantir a estabilidade do hardware, a eficiência do sistema de refrigeração líquida, a integridade da memória ECC e o desempenho nominal dos componentes sob carga máxima.
+- inventario completo de componentes (marca/modelo quando disponivel)
+- comparacao de conformidade contra catalogo enviado em PDF
+- benchmark e stress de CPU, RAM, disco e GPU
+- relatorio final somente em Markdown
 
-## 📋 Índice
-- [Objetivos do Teste](#objetivos-do-teste)
-- [Pré-requisitos](#pré-requisitos)
-- [Componentes Testados](#componentes-testados)
-- [Como Executar](#como-executar)
-- [Estrutura do Relatório](#estrutura-do-relatório)
-- [Critérios de Aceite](#critérios-de-aceite)
+## Objetivos
 
-## 🎯 Objetivos do Teste
-O script realiza uma bateria de testes rigorosos divididos em cinco fases:
-1.  **Verificação de Software/Ambiente:** Validação do Kernel Linux (6.8+) e drivers NVIDIA.
-2.  **Estresse Térmico (Burn-in):** 60 minutos de carga total em CPU, RAM e I/O.
-3.  **Benchmark de Processamento:** Validação de MIPS (CPU) e detecção de erros em memória RDIMM ECC.
-4.  **Performance Gráfica (CUDA/OptiX):** Renderização via Blender nas cenas padrão da indústria.
-5.  **Saúde do Armazenamento:** Verificação de integridade e tempo de uso de SSDs e HDDs via S.M.A.R.T.
+O fluxo automatiza as etapas abaixo:
 
-## 💻 Pré-requisitos
-*   **Sistema Operacional:** Ubuntu 22.04 LTS ou superior (recomendado 24.04 para suporte nativo ao Kernel 6.8).
-*   **Drivers:** NVIDIA Production Branch instalados e funcionais.
-*   **Privilégios:** Acesso de superusuário (`sudo`).
-*   **Conexão com Internet:** Necessária para baixar o Blender Benchmark CLI e dependências de software.
+1. Extracao de texto do catalogo PDF (com fallback OCR quando necessario).
+2. Inventario de CPU, placa mae/BIOS, memoria, GPU, discos (incluindo horas), NIC e observacao de PSU.
+3. Comparacao detectado vs catalogo com status por componente.
+4. Stress e benchmark com captura de evidencias em logs.
+5. Geracao de relatorio final em Markdown.
 
-## 🛠 Componentes Testados
-*   **CPU:** Processador AMD Zen 4 (24 núcleos/48 threads).
-*   **GPU:** NVIDIA RTX Pro 6000 Blackwell.
-*   **RAM:** 128GB+ RDIMM ECC.
-*   **Storage:** SSD NVMe 2TB + HDD 20TB Enterprise.
-*   **PSU:** Fonte de 1300W (validada através do consumo de pico durante o stress-ng).
+## Requisitos
 
-## 🚀 Como Executar
+- Ubuntu/Debian com apt-get
+- Permissao de root (sudo)
+- Internet para instalacao de dependencias e download do Blender Benchmark CLI
 
-1.  **Clonar ou Baixar o Script:**
-    ```bash
-    chmod +x hardware_validation.sh
-    ```
+Dependencias instaladas automaticamente pelo script:
 
-2.  **Executar os Testes:**
-    Recomenda-se executar o script dentro de uma sessão `screen` ou `tmux`, pois o teste de estresse dura 60 minutos.
-    ```bash
-    sudo ./hardware_validation.sh
-    ```
+- stress-ng, p7zip-full, fio
+- lm-sensors, smartmontools, nvme-cli
+- dmidecode, lshw, pciutils, ethtool
+- poppler-utils (pdftotext/pdfinfo), tesseract-ocr, ocrmypdf
 
-3.  **Acompanhamento:**
-    O script exibirá o progresso no terminal e salvará todos os logs em uma pasta datada (ex: `test_results_20231027_103000/`).
+## Como executar
 
-## 📊 Estrutura do Relatório
-Ao final da execução, o script gera automaticamente um relatório consolidado em **PDF** contendo:
-*   Logs de saída de todos os comandos de sistema.
-*   Tabelas de desempenho (MIPS e Samples/min).
-*   Gráfico/Resumo de temperaturas máximas atingidas.
-*   Status de saúde dos discos (Zero horas de uso).
+1. Dar permissao de execucao:
 
-## ✅ Critérios de Aceite
-Para que o equipamento seja considerado **APROVADO**, ele deve cumprir:
-*   **Estabilidade:** Zero reinicializações ou travamentos durante os 60 minutos de `stress-ng`.
-*   **Memória:** Zero erros detectados no benchmark do 7-Zip (indicativo de falha na ECC).
-*   **Térmico:** CPU e GPU não devem atingir o limite de *thermal throttling* (Geralmente < 95°C para Zen 4 e < 85°C para GPU).
-*   **Discos:** O log do `smartctl` deve indicar "Power On Hours" próximo a 0 e zero "Bad Sectors".
-*   **Performance:** Os scores do Blender devem estar dentro de uma margem de +/- 5% em relação aos benchmarks oficiais da arquitetura Blackwell.
+```bash
+chmod +x hardware_validation.sh
+```
 
----
-**Aviso:** Este teste submete o hardware a condições extremas de carga e calor. Certifique-se de que o equipamento esteja em local ventilado antes de iniciar.
+2. Executar com catalogo PDF:
+
+```bash
+sudo ./hardware_validation.sh --catalogo-pdf /caminho/catalogo.pdf
+```
+
+3. Opcionalmente ajustar duracao e pasta de saida:
+
+```bash
+sudo ./hardware_validation.sh \
+  --catalogo-pdf /caminho/catalogo.pdf \
+  --duracao 120 \
+  --saida ./test_results_custom
+```
+
+## Execucao remota via SSH
+
+Existe um wrapper para executar a validacao em um host remoto usando SSH:
+
+```bash
+chmod +x hardware_validation_remote.sh
+```
+
+Exemplo basico:
+
+```bash
+./hardware_validation_remote.sh \
+  --host 10.10.10.50 \
+  --user admin \
+  --catalogo-pdf ./catalogo_servidor.pdf
+```
+
+Exemplo com chave SSH, porta customizada e duracao:
+
+```bash
+./hardware_validation_remote.sh \
+  --host servidor.lab.local \
+  --user root \
+  --port 2222 \
+  --key ~/.ssh/id_rsa \
+  --catalogo-pdf ./catalogo_servidor.pdf \
+  --duracao 120 \
+  --saida-local ./remote_results
+```
+
+Observacoes do modo remoto:
+
+- O wrapper envia [hardware_validation.sh](hardware_validation.sh) e o catalogo PDF para um diretorio temporario remoto.
+- A execucao remota usa sudo por padrao (use --sem-sudo para desativar).
+- A instalacao automatica de driver NVIDIA fica ativa por padrao quando houver GPU NVIDIA sem driver funcional.
+- Se o driver NVIDIA for instalado/atualizado, o script encerra solicitando reboot do servidor para continuar.
+- Ao final, os artefatos de resultado sao baixados para o diretorio local definido em --saida-local.
+
+## Saidas geradas
+
+O script cria um diretorio de resultados com:
+
+- Relatorio_Final.md
+- inventario_detectado.md
+- comparacao_catalogo.md
+- catalogo_extraido.txt e catalogo_extraido.normalizado.txt
+- benchmark_7z.log, stress_ng.log, fio.log, blender_gpu.log
+- thermal_logs.txt
+
+## Observacoes importantes
+
+- O criterio de comparacao e exato por conteudo normalizado.
+- Em ambiente sem GPU NVIDIA, o benchmark de GPU e marcado como SKIP justificado.
+- A deteccao de PSU via software pode ser limitada; o relatorio destaca esta restricao.
+- Stress de longa duracao pode elevar temperatura de forma significativa. Use ambiente ventilado.
